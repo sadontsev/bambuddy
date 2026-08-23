@@ -1275,7 +1275,13 @@ def _format_hms_error_summary(hms_errors: list[dict]) -> str | None:
     for err in hms_errors:
         try:
             code_str = str(err.get("code", "")).replace("0x", "")
-            error_num = int(code_str, 16) if code_str else 0
+            # Both halves are masked to 16 bits. `:04X` is a MINIMUM width, not a maximum, so
+            # an unmasked error number wider than 0xFFFF formats as five hex digits and builds
+            # a ten-character key that can never match the table: a live H2C reporting
+            # code 0x3000a with attr 0x05000000 produced `0500_3000A`, and the queue item's
+            # error_message degraded to a bare `[0500_3000A]` with no sentence behind it.
+            # The parser in bambu_mqtt.py masks both; this is the copy that did not.
+            error_num = (int(code_str, 16) if code_str else 0) & 0xFFFF
             module_num = (int(err.get("attr", 0)) >> 16) & 0xFFFF
             short_code = f"{module_num:04X}_{error_num:04X}"
         except (TypeError, ValueError):
