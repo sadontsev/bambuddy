@@ -170,6 +170,12 @@ class HMSErrorResponse(BaseModel):
     # truncated short_code that historically caused silent command rejection
     # (#1830, H2D wrong-plate verification).
     full_code: str = ""
+    # Human-readable cause, when one is on file. `None` is a real answer, not a gap:
+    # only the 8-char `print_error` family has entries in HMS_ERROR_DESCRIPTIONS, whose
+    # keys are `MMMM_EEEE`. A 16-char `hms[]` full_code carries a 64-bit attr+code and
+    # matches no key, and truncating one to 8 chars to force a hit would return another
+    # error's sentence — worse than saying nothing.
+    description: str | None = None
 
 
 class AMSTray(BaseModel):

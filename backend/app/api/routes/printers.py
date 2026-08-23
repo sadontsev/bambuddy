@@ -52,6 +52,7 @@ from backend.app.services.bambu_ftp import (
     get_storage_info_async,
     list_files_async,
 )
+from backend.app.services.hms_errors import get_error_description
 from backend.app.services.print_storage import print_file_reachable_over_ftp
 from backend.app.services.printer_diagnostic import run_connection_diagnostic
 from backend.app.services.printer_manager import (
@@ -476,7 +477,17 @@ async def get_printer_status(
     if state.state in ("RUNNING", "PAUSE") and state.gcode_file:
         cover_url = f"/api/v1/printers/{printer_id}/cover"
 
-    # Convert HMS errors to response format
+    # Convert HMS errors to response format.
+    #
+    # `description` is resolved HERE rather than by every consumer. The table has been in
+    # hms_errors.py all along and the status response has never carried it, so each client
+    # grew its own copy — the codes are the same for everyone and the sentence is not
+    # client-specific.
+    #
+    # Only the 8-char `print_error` family resolves: HMS_ERROR_DESCRIPTIONS is keyed
+    # `MMMM_EEEE`, which is exactly a `print_error` full_code split in half. A 16-char
+    # `hms[]` full_code is a 64-bit attr+code and matches nothing, so it gets None rather
+    # than a truncation that would land on an unrelated entry's sentence.
     hms_errors = [
         HMSErrorResponse(
             code=e.code,
@@ -486,6 +497,11 @@ async def get_printer_status(
             actions=e.actions,
             job_id=e.job_id,
             full_code=e.full_code,
+            description=(
+                get_error_description(f"{e.full_code[:4]}_{e.full_code[4:]}")
+                if len(e.full_code or "") == 8
+                else None
+            ),
         )
         for e in (state.hms_errors or [])
     ]
